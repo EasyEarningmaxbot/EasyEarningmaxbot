@@ -23,7 +23,6 @@ def register(bot):
         ig_active = is_task_type_active('Instagram')
         fb_active = is_task_type_active('Facebook')
 
-        # যদি কোনো কাজই চালু না থাকে
         if not ig_active and not fb_active:
             bot.send_message(message.chat.id, "<b>বর্তমানে কোনো কাজ চালু নেই।</b>", parse_mode="HTML", reply_markup=main_menu(message.from_user.id))
             return
@@ -112,7 +111,8 @@ def register(bot):
             bot.register_next_step_handler(msg, validate_and_generate_otp, g_user, g_pass)
             return
 
-        existing_task = tasks_col.find_one({'2fa_key': raw_2fa})
+        # ⚡ [Fast Index Check] ১ মিলিসেকেন্ডে ডুপ্লিকেট কি চেক করবে
+        existing_task = tasks_col.find_one({'2fa_key': raw_2fa}, {'_id': 1})
         if existing_task:
             msg = bot.send_message(message.chat.id, "<b>এই 2FA Key টি ইতিমধ্যে ব্যবহার করা হয়েছে! অনুগ্রহ করে নতুন 2FA Key দিন:</b>", parse_mode="HTML", reply_markup=cancel_keyboard())
             bot.register_next_step_handler(msg, validate_and_generate_otp, g_user, g_pass)
@@ -180,8 +180,6 @@ def register(bot):
                 print(f"Task Group Log Error: {e}")
         else:
             bot.send_message(message.chat.id, "<b>অনুগ্রহ করে নিচের 'অ্যাকাউন্ট খোলা শেষ' বাটনে ক্লিক করুন।</b>", parse_mode="HTML", reply_markup=main_menu(message.from_user.id))
-    # ------------------ ইন্সটাগ্রাম কাজ শেষ ------------------
-
 
     # ------------------ ফেসবুক কাজ শুরু ------------------
     @bot.message_handler(func=lambda message: message.text == 'ফেসবুক কাজ')
@@ -270,7 +268,8 @@ def register(bot):
             bot.register_next_step_handler(msg, validate_facebook_uid)
             return
 
-        existing_uid = tasks_col.find_one({'fb_uid': uid})
+        # ⚡ [Fast Index Check] fast UID lookup
+        existing_uid = tasks_col.find_one({'fb_uid': uid}, {'_id': 1})
         if existing_uid:
             dup_err = f'<b>দুঃখিত আপনি এই UID একবার সেন্ট করেছেন দ্বিতীয়বার নেওয়া যাবে না</b> <tg-emoji emoji-id="4958526153955476488">❌</tg-emoji>'
             cancel_markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
@@ -340,7 +339,6 @@ def register(bot):
                 print(f"Task Group Log Error: {e}")
         else:
             bot.send_message(message.chat.id, "<b>অনুগ্রহ করে নিচের 'অ্যাকাউন্ট খোলা শেষ' বাটনে ক্লিক করুন।</b>", parse_mode="HTML", reply_markup=main_menu(message.from_user.id))
-    # ------------------ ফেসবুক কাজ শেষ ------------------
 
     # ------------------ ভিডিও গাইড ------------------
     @bot.message_handler(func=lambda message: message.text == 'কিভাবে কাজ করব')
