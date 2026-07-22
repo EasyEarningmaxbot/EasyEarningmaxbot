@@ -1,0 +1,6 @@
+pyTelegramBotAPI
+pymongo
+dnspython
+openpyxl
+pyotp
+web3
