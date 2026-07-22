@@ -4,9 +4,6 @@ import config
 from database import is_banned, users_col, get_setting
 from keyboards import main_menu
 
-# -------------------------------------------------------------
-# 📢 সদস্য পদ ভেরিফিকেশন (একাধিক চ্যানেলের জন্য)
-# -------------------------------------------------------------
 def check_membership(bot, user_id):
     """
     config.REQUIRED_CHANNELS-এর প্রতিটি চ্যানেলে ইউজার জয়েন আছে কিনা চেক করে।
@@ -21,12 +18,7 @@ def check_membership(bot, user_id):
         return False
 
 def send_force_join_msg(bot, chat_id, referrer_id=None):
-    """
-    ইউজারকে সবকটি বাধ্যতামূলক চ্যানেলে জয়েন করানোর জন্য বাটন পাঠায়।
-    """
     markup = InlineKeyboardMarkup(row_width=1)
-    
-    # config.REQUIRED_CHANNELS লিস্ট থেকে প্রতিটি চ্যানেলের জন্য ডায়নামিক বাটন
     for ch in config.REQUIRED_CHANNELS:
         btn = InlineKeyboardButton(text=f"📢 জয়েন করুন: {ch['name']}", url=ch['link'])
         markup.add(btn)
@@ -63,24 +55,36 @@ def register(bot):
             send_force_join_msg(bot, message.chat.id, referrer_id)
             return
 
-        users_col.update_one(
-            {'user_id': user_id},
-            {'$set': {
-                'first_name': first_name,
-                'username': message.from_user.username or "None"
-            }},
-            upsert=True
-        )
+        # ⚡ [Optimization] শুধুমাত্র ১ বার ডাটাবেস কোয়েরি চালিয়ে Upsert করা
+        user_data = users_col.find_one({'user_id': user_id}, {'joined_at': 1})
         
-        user_data = users_col.find_one({'user_id': user_id})
-        if 'joined_at' not in user_data:
-            users_col.update_one({'user_id': user_id}, {'$set': {'joined_at': datetime.datetime.now(), 'balance': 0.00, 'pending_withdraw': 0.00, 'total_income': 0.00, 'completed_tasks': 0, 'is_banned': False}})
+        if not user_data:
+            new_user = {
+                'user_id': user_id,
+                'first_name': first_name,
+                'username': message.from_user.username or "None",
+                'joined_at': datetime.datetime.now(),
+                'balance': 0.00,
+                'pending_withdraw': 0.00,
+                'total_income': 0.00,
+                'completed_tasks': 0,
+                'is_banned': False
+            }
             if referrer_id and referrer_id != user_id:
-                users_col.update_one({'user_id': user_id}, {'$set': {'referrer_id': referrer_id}})
+                new_user['referrer_id'] = referrer_id
                 try: 
                     bot.send_message(referrer_id, f"👥 আপনার রেফারেলে একজন নতুন মেম্বার জয়েন করেছে!")
                 except: 
                     pass
+            users_col.insert_one(new_user)
+        else:
+            users_col.update_one(
+                {'user_id': user_id},
+                {'$set': {
+                    'first_name': first_name,
+                    'username': message.from_user.username or "None"
+                }}
+            )
 
         welcome_text = (
             f'<tg-emoji emoji-id="5416015487525988007">👋</tg-emoji> <b>স্বাগতম, {first_name}!</b>\n\n'
@@ -109,24 +113,35 @@ def register(bot):
             except:
                 pass
             
-            users_col.update_one(
-                {'user_id': user_id},
-                {'$set': {
-                    'first_name': first_name,
-                    'username': call.from_user.username or "None"
-                }},
-                upsert=True
-            )
+            user_data = users_col.find_one({'user_id': user_id}, {'joined_at': 1})
             
-            user_data = users_col.find_one({'user_id': user_id})
-            if 'joined_at' not in user_data:
-                users_col.update_one({'user_id': user_id}, {'$set': {'joined_at': datetime.datetime.now(), 'balance': 0.00, 'pending_withdraw': 0.00, 'total_income': 0.00, 'completed_tasks': 0, 'is_banned': False}})
+            if not user_data:
+                new_user = {
+                    'user_id': user_id,
+                    'first_name': first_name,
+                    'username': call.from_user.username or "None",
+                    'joined_at': datetime.datetime.now(),
+                    'balance': 0.00,
+                    'pending_withdraw': 0.00,
+                    'total_income': 0.00,
+                    'completed_tasks': 0,
+                    'is_banned': False
+                }
                 if referrer_id and referrer_id != user_id:
-                    users_col.update_one({'user_id': user_id}, {'$set': {'referrer_id': referrer_id}})
+                    new_user['referrer_id'] = referrer_id
                     try: 
                         bot.send_message(referrer_id, f"👥 আপনার রেফারেলে একজন নতুন মেম্বার জয়েন করেছে!")
                     except: 
                         pass
+                users_col.insert_one(new_user)
+            else:
+                users_col.update_one(
+                    {'user_id': user_id},
+                    {'$set': {
+                        'first_name': first_name,
+                        'username': call.from_user.username or "None"
+                    }}
+                )
                     
             welcome_text = (
                 f'<tg-emoji emoji-id="5416015487525988007">👋</tg-emoji> <b>স্বাগতম, {first_name}!</b>\n\n'
@@ -155,7 +170,8 @@ def register(bot):
         except:
             prizes = [100.0, 50.0, 30.0, 20.0, 10.0]
 
-        top_users = list(users_col.find().sort('completed_tasks', -1).limit(5))
+        # ⚡ [Optimization] Projection ব্যবহার করে শুধুমাত্র প্রয়োজনীয় Field আনো
+        top_users = list(users_col.find({}, {'first_name': 1, 'completed_tasks': 1}).sort('completed_tasks', -1).limit(5))
         
         rank_emojis = [
             "6206419981161211268", 
