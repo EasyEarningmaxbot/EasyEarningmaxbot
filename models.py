@@ -1,16 +1,34 @@
 import random
 import string
 
-def generate_uncommon_username():
-    prefixes = ['rohrz', 'vany', 'zax', 'bren', 'krish', 'miko', 'trix', 'jolt', 'zeno', 'falk']
-    suffix_letters = "".join(random.choices(string.ascii_lowercase, k=2))
-    suffix_numbers = "".join(random.choices(string.digits, k=3))
-    return f"{random.choice(prefixes)}{suffix_letters}{suffix_numbers}"
+# ⚡ Pre-defined Lists & Constants (মেমোরি লোড কমানোর জন্য)
+PREFIXES = ['rohrz', 'vany', 'zax', 'bren', 'krish', 'miko', 'trix', 'jolt', 'zeno', 'falk']
+FIRST_NAMES = ["Rahim", "Karim", "Sujon", "Tanvir", "Sabbir", "Arif", "Nayeem", "Hasan", "Mehedi", "Sakib", "Rana", "Fahim"]
+LAST_NAMES = ["Ahmed", "Khan", "Chowdhury", "Hossain", "Islam", "Sheikh", "Uddin", "Rahman", "Miah", "Sarkar"]
 
-def generate_first_name():
-    first_names = ["Rahim", "Karim", "Sujon", "Tanvir", "Sabbir", "Arif", "Nayeem", "Hasan", "Mehedi", "Sakib", "Rana", "Fahim"]
-    return random.choice(first_names)
+ASCII_LOWER = string.ascii_lowercase
+DIGITS = string.digits
 
-def generate_last_name():
-    last_names = ["Ahmed", "Khan", "Chowdhury", "Hossain", "Islam", "Sheikh", "Uddin", "Rahman", "Miah", "Sarkar"]
-    return random.choice(last_names)
+
+def generate_uncommon_username() -> str:
+    """
+    আনকমন ইউজারনেম জেনারেটর (Ultra-Fast)
+    """
+    prefix = random.choice(PREFIXES)
+    suffix_letters = "".join(random.choices(ASCII_LOWER, k=2))
+    suffix_numbers = "".join(random.choices(DIGITS, k=3))
+    return f"{prefix}{suffix_letters}{suffix_numbers}"
+
+
+def generate_first_name() -> str:
+    """
+    ফার্স্ট নেম জেনারেটর
+    """
+    return random.choice(FIRST_NAMES)
+
+
+def generate_last_name() -> str:
+    """
+    লাস্ট নেম জেনারেটর
+    """
+    return random.choice(LAST_NAMES)
