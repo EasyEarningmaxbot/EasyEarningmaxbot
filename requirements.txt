@@ -1,6 +1,7 @@
-pyTelegramBotAPI
-pymongo
-dnspython
-openpyxl
-pyotp
-web3
+aiogram>=3.3.0
+motor>=3.3.0
+dnspython>=2.6.0
+openpyxl>=3.1.2
+pyotp>=2.9.0
+web3>=6.15.0
+aiohttp>=3.9.0
