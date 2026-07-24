@@ -1,17 +1,15 @@
-import telebot
-from telebot import apihelper
+import asyncio
+import logging
+import sys
+from aiogram import Bot, Dispatcher, types, F
+from aiogram.enums import ParseMode
+from aiogram.client.default import DefaultBotProperties
+from aiogram.fsm.storage.memory import MemoryStorage
 
 import config
 from keyboards import main_menu
 
-# API টাইমআউট কিছুটা কমিয়ে দ্রুত রেসপন্সের জন্য অপটিমাইজ করা হলো
-apihelper.CONNECT_TIMEOUT = 10
-apihelper.READ_TIMEOUT = 10
-
-# Thread সংখ্যা কমসে কম ১০-২০ এর মধ্যে রাখা নিরাপদ
-bot = telebot.TeleBot(config.BOT_TOKEN, num_threads=20, parse_mode="HTML")
-
-# Import Handlers
+# ১. হ্যান্ডলার মডিউলগুলো ইম্পোর্ট
 import startHandler
 import profileHandler
 import referralHandler
@@ -20,21 +18,62 @@ import withdrawHandler
 import taskHandler
 import adminHandler
 
-# 🛠️ Register Handlers
-profileHandler.register(bot)
-startHandler.register(bot)
-referralHandler.register(bot)
-supportHandler.register(bot)
-withdrawHandler.register(bot)
-taskHandler.register(bot)
-adminHandler.register(bot)
+# লগিং কনফিগারেশন (সিস্টেমের এরর ট্র্যাক করার জন্য)
+logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 
-@bot.message_handler(func=lambda message: message.text and 'বাতিল' in message.text)
-def general_cancel(message):
-    bot.clear_step_handler_by_chat_id(message.chat.id)
-    bot.send_message(message.chat.id, "বাতিল করে মূল মেনুতে ফিরে যাওয়া হয়েছে।", reply_markup=main_menu(message.from_user.id))
+# ২. বট এবং ডিসপ্যাচার ইনিশিয়ালাইজেশন (সুপারফাস্ট Asynchronous মোড)
+bot = Bot(
+    token=config.BOT_TOKEN, 
+    default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+)
+dp = Dispatcher(storage=MemoryStorage())
+
+# 🛠️ ৩. রাউটার/হ্যান্ডলার রেজিস্টার করা
+# (আপনার হ্যান্ডলার ফাইলগুলোতে router যুক্ত করে এখানে ইনক্লুড করা হচ্ছে)
+dp.include_router(startHandler.router)
+dp.include_router(profileHandler.router)
+dp.include_router(referralHandler.router)
+dp.include_router(supportHandler.router)
+dp.include_router(withdrawHandler.router)
+dp.include_router(taskHandler.router)
+dp.include_router(adminHandler.router)
+
+
+# ❌ ৪. 'বাতিল' বা Cancel হ্যান্ডলার (Asynchronous + Non-blocking)
+@dp.message(F.text.contains("বাতিল"))
+async def general_cancel(message: types.Message, state=None):
+    try:
+        # FSM State বা Step ক্লিয়ার করা
+        if state:
+            await state.clear()
+            
+        await message.answer(
+            "বাতিল করে মূল মেনুতে ফিরে যাওয়া হয়েছে।", 
+            reply_markup=await main_menu(message.from_user.id) if callable(main_menu) else main_menu
+        )
+    except Exception as e:
+        logging.error(f"Error in cancel handler: {e}")
+
+
+# 🛡️ ৫. গ্লোবাল এরর হ্যান্ডলার (যা বটকে কখনো ক্রাশ হতে দেবে না)
+@dp.errors()
+async def global_error_handler(event: types.ErrorEvent):
+    logging.error(f"Critical Exception Caught: {event.exception}", exc_info=True)
+    return True
+
+
+# ⚡ ৬. বটের মূল এক্সিকিউশন
+async def main():
+    print("⚡ Bot is starting in HIGH-SPEED Async mode...")
+    
+    # জমে থাকা পুরোনো মেসেজ ক্লিয়ার করা (যাতে বট চালু হওয়ার পর স্লো না হয়ে যায়)
+    await bot.delete_webhook(drop_pending_updates=True)
+    
+    # বোটিং স্টার্ট
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    print("Bot is running fast...")
-    # non_stop=True এবং skip_pending=True দিলে জমে থাকা পুরোনো রিকোয়েস্টের কারণে বট স্লো হবে না
-    bot.infinity_polling(timeout=10, long_polling_timeout=5, skip_pending=True)
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        print("Bot stopped safely.")
